@@ -1,0 +1,100 @@
+#!/bin/bash
+
+
+cmd="aws cloudformation"
+
+function usage()
+{
+    echo "if this was a real script you would see something useful here"
+    echo ""
+    echo "./simple_args_parsing.sh"
+    echo "\t-h --help"
+    echo "\t--environment=$ENVIRONMENT"
+    echo "\t--db-path=$DB_PATH"
+    echo ""
+}
+
+
+function handle_params()
+{
+    echo
+
+}
+
+function list_stacks()
+{
+
+  #$cmd list-stacks --stack-status-filter CREATE_COMPLETE CREATE_FAILED UPDATE_COMPLETE | jq -r '.StackSummaries[] | "\(.StackName)\t\t\(.StackStatus)"'
+  $cmd list-stacks --stack-status-filter CREATE_COMPLETE CREATE_FAILED UPDATE_COMPLETE | jq -r '.StackSummaries[] | [ .StackName, .StackStatus ] | @csv' | tr -s "," " "
+
+}
+
+function update_stack()
+{
+
+  $cmd update-stack--stack-name $1 --template-body=file:$2
+
+}
+
+# cf describe-stack-events --stack-name vpc-1 | jq '.StackEvents[] | "\(.LogicalResourceId), \(.ResourceStatus)"'
+function delete_stack()
+{
+
+  $cmd delete-stack --stack-name $1
+
+}
+
+function create_stack()
+{
+    echo "Creating stack"
+    echo "$1 $2"
+    if [ -z "$2" ]; then
+      if [ -f "$1.yml" ]; then
+          TEMPLATE=$1.yml
+      else
+          echo "You need to specify template file"
+          exit 1
+      fi
+    else
+        TEMPLATE=$2
+    fi
+    $cmd create-stack --stack-name $1 --template-body=file://$TEMPLATE --capabilities CAPABILITY_IAM
+
+    # $cmd wait stack-create-complete --stack-name $STACK_ID_FROM_CREATE_STACK
+
+
+    # handle params
+
+}
+
+while [ "$1" != "" ]; do
+    case $1 in
+        -h | --help)
+            usage
+            exit
+            ;;
+        create)
+            shift;
+            create_stack "$@"
+            exit 0
+            ;;
+        delete | del | -d)
+            shift;
+            delete_stack "$@"
+            ;;
+        update)
+            update_stack "$@"
+            shift;
+            ;;
+        list)
+            list_stacks "$@"
+            shift;
+            ;;
+        *)
+            echo "ERROR: unknown parameter \"$PARAM\""
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
