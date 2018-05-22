@@ -21,6 +21,16 @@ function handle_params()
 
 }
 
+
+function list_events()
+{
+
+  STACKNAME=$1
+
+  $cmd describe-stack-events --stack-name $STACKNAME | jq '.StackEvents[] | "\(.LogicalResourceId), \(.ResourceStatus)"'
+
+}
+
 function list_stacks()
 {
 
@@ -32,7 +42,26 @@ function list_stacks()
 function update_stack()
 {
 
-  $cmd update-stack--stack-name $1 --template-body=file:$2
+  echo "Updating stack"
+  echo "$1 $2"
+  STACKNAME=$1
+  if [ -z "$2" ]; then
+    if [ -f "$1.yml" ]; then
+        TEMPLATE=$STACKNAME.yml
+    else
+        echo "You need to specify template file"
+        exit 1
+    fi
+  else
+      TEMPLATE=$2
+  fi
+  if [ ! -z "$PARAMS" ]; then
+      echo "Params $PARAMS"
+  fi
+  shift;
+  shift;
+  $cmd update-stack --stack-name $STACKNAME --template-body=file://$TEMPLATE --capabilities CAPABILITY_IAM $@
+
 
 }
 
@@ -48,9 +77,10 @@ function create_stack()
 {
     echo "Creating stack"
     echo "$1 $2"
+    STACKNAME=$1
     if [ -z "$2" ]; then
       if [ -f "$1.yml" ]; then
-          TEMPLATE=$1.yml
+          TEMPLATE=$STACKNAME.yml
       else
           echo "You need to specify template file"
           exit 1
@@ -58,11 +88,13 @@ function create_stack()
     else
         TEMPLATE=$2
     fi
-    $cmd create-stack --stack-name $1 --template-body=file://$TEMPLATE --capabilities CAPABILITY_IAM
+    # TODO: this is WRONG!
+    shift;
+    shift;
+
+    $cmd create-stack --stack-name $STACKNAME --template-body=file://$TEMPLATE --capabilities CAPABILITY_IAM $@
 
     # $cmd wait stack-create-complete --stack-name $STACK_ID_FROM_CREATE_STACK
-
-
     # handle params
 
 }
@@ -83,13 +115,19 @@ while [ "$1" != "" ]; do
             delete_stack "$@"
             ;;
         update)
-            update_stack "$@"
             shift;
+            update_stack "$@"
+            exit 0
             ;;
         list)
             list_stacks "$@"
             shift;
             ;;
+        events)
+            shift;
+            list_events "$@"
+            ;;
+
         *)
             echo "ERROR: unknown parameter \"$PARAM\""
             usage
